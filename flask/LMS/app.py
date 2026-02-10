@@ -8,6 +8,7 @@
 # templates : 동적파일을 모아놓음 (CRUD화면, 인덱스, 레이아웃 등)
 from flask import Flask, render_template,request,redirect,url_for,session
 from LMS.common import Session
+from LMS.domain import Board
 
 #                 Flask  프론트 연결      요청에 응답 ,주소전달,주소생성,상태저장
 
@@ -156,8 +157,151 @@ def mypage():
     finally:
         conn.close()
 
+#----------------------------------------------------------------------------------------------------------------------
+# 게시물 CRUD
+#----------------------------------------------------------------------------------------------------------------------
+@app.route('/board/write', methods=['GET', 'POST']) # http://localhost:5000/board/write
+def board_write():
+    #  1. 사용자가 글쓰기 버튼을 눌러서 들어왔을 때 (화면 보여주기)
+    if request.method == 'GET':
+        # 로그인체크
+        if 'user_id' not in session:
+            return '<script>alert("로그인 후 이용 가능합니다.");location.href="/login";</script>'
+        return render_template('board_write.html')
+
+    # 2. 사용자가 등록하기 버튼을 눌러서 데이터를 보냈을 때
+    elif request.method == 'POST': #<form action="/board/write" method="POST">
+        title = request.form.get('title')
+        content = request.form.get('content')
+        # 세션에 저장된 로그인 유저의 ID (member_id)
+        member_id = session.get('user_id')
+
+        conn =Session.get_connection()
+        try:
+            with conn.cursor() as cursor:
+                sql = "insert into boards (member_id,title,content) values (%s,%s,%s)"
+                cursor.execute(sql, (member_id,title,content))
+                conn.commit()
+            return  redirect(url_for('board_list')) # 저장 후 목록으로 이동
+        except Exception as e:
+            print(f"글 쓰기 에러 : {e}")
+            return "저장 중 에러가 발생했습니다."
+        finally:
+            conn.close()
+
+@app.route('/board')  # http://localhost:5000/board?page=1
+def board_list():
+    page = request.args.get("page", 1, type=int)  # 현재 페이지
+    per_page = 10  # 한 페이지 글 개수
+    offset = (page - 1) * per_page
+
+    conn = Session.get_connection()
+    try:
+        with conn.cursor() as cursor:
+            # 1) 전체 글 개수
+            cursor.execute("SELECT COUNT(*) AS cnt FROM boards")
+            total = cursor.fetchone()["cnt"]
+            total_pages = (total + per_page - 1) // per_page  # 올림 나눗셈
+
+            # 2) 현재 페이지 글 목록 (LIMIT/OFFSET)
+            sql = """
+            SELECT b.*, m.name AS writer_name
+            FROM boards b
+            JOIN members m ON b.member_id = m.id
+            ORDER BY b.id DESC
+            LIMIT %s OFFSET %s
+            """
+            cursor.execute(sql, (per_page, offset))
+            rows = cursor.fetchall()
+
+            boards = [Board.from_db(row) for row in rows]
+
+            return render_template(
+                "board_list.html",
+                boards=boards,
+                page=page,
+                total_pages=total_pages
+            )
+    finally:
+        conn.close()
+
+# 자세히 보기
+@app.route('/board/view/<int:board_id>') # http://localhost:5000/board/view/99(게시글 번호)
+def board_view(board_id):
+    conn = Session.get_connection()
+    try:
+        with conn.cursor() as cursor:
+            # JOIN을 통해 작성자 정보(name,uid)를 함께 조회
+            sql = """select b.*, m.name as writer_name, m.uid as writer_uid 
+            from boards b 
+            JOIN members m ON b.member_id =m.id
+            where b.id = %s """
+            cursor.execute(sql, (board_id,))
+            row = cursor.fetchone()
+
+            if not row:
+                return "<script>alert('존재하지 않는 게시글 입니다.');history.back();</script>"
+            #Board 객체로 변환(앞서 작성한 Board.pt의 from_db 활용)
+            board =Board.from_db(row)
+
+            return render_template('board_view.html',board=board)
+    finally:
+        conn.close()
+
+@app.route('/board/edit/<int:board_id>',methods=['GET','POST']) # http://localhost:5000/board/edit/99(게시글 번호)
+def board_edit(board_id):
+    conn = Session.get_connection()
+    try:
+        with conn.cursor() as cursor:
+            if request.method == 'GET':
+                sql = "select * from boards where id = %s "
+                cursor.execute(sql, (board_id,))
+                row = cursor.fetchone()
+
+                if not row:
+                    return "<script>alert('존재하지 않는 게시글 입니다.');history.back();</script>"
+
+                if row['member_id'] != session.get('user_id'):
+                    return "<script>alert('수정권한이 없습니다.');history.back();</script>"
+
+                print(row)
+                board =Board.from_db(row)
+                return render_template('board_edit.html',board=board)
+
+            elif request.method == 'POST':
+                title = request.form.get('title')
+                content = request.form.get('content')
+
+                sql = "update boards set title = %s, content = %s where id = %s "
+                cursor.execute(sql, (title,content, board_id))
+                conn.commit()
+                return redirect(url_for('board_view',board_id=board_id))
+
+    finally:
+        conn.close()
+
+@app.route('/board/delete/<int:board_id>',methods=['GET','POST'])
+def board_delete(board_id):
+    conn = Session.get_connection()
+    try:
+        with conn.cursor() as cursor:
+            sql = "DELETE FROM boards where id = %s "
+            cursor.execute(sql, (board_id,))
+            conn.commit()
+
+            if cursor.rowcount > 0:
+                print(f"게시글 {board_id}번이 삭제 성공")
+            else:
+                return "<script>alert('삭제할 게시글이 없거나 권한이 없스빈다.');history.back();</script>"
+        return redirect(url_for('board_list'))
+    except Exception as e:
+        print(f"삭제에러 : {e}")
+        return "삭제 중 오류가 발생했습니다."
+    finally:
+        conn.close()
 
 
+#----------------------------------------------------------------------------------------------------------------------
 @app.route('/') #URL 생서용 코드 http://localhost:5000/
 def index():
     return render_template('main.html')
