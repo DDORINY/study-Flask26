@@ -1,4 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
+
+from domain import Member
 from service.MemberService import MemberService
 
 app = Flask(__name__)
@@ -51,7 +53,19 @@ def logout():
 
 @app.route('/mypage')
 def mypage():
-    return "마이페이지(임시)"
+    if not session.get('user_id'):
+        return redirect(url_for('login'))
+
+    user_info, board_count = MemberService.my_page(
+        uid=session['user_id']
+    )
+    return render_template(
+        'member/mypage.html',
+        user=user_info,
+        board_count=board_count
+    )
+
+
 
 
 @app.route('/join', methods=['GET', 'POST'])
@@ -80,6 +94,52 @@ def join():
     except Exception as e:
         print("회원가입 에러:", e)
         return "가입 중 오류가 발생했습니다. join 메서드를 확인하세요."
+
+@app.route('/member/edit', methods=['GET', 'POST'])
+def member_edit():
+    if not session.get('user_id'):
+        return redirect(url_for('login'))
+
+    if request.method == 'GET':
+        uid = session['user_id']
+        user_info, _ = MemberService.my_page(uid)
+        return render_template('member/edit.html', user=user_info)
+
+    uid = session['user_id']
+    name = request.form.get('name', '').strip()
+    pw = request.form.get('password', '').strip()
+
+    try:
+        MemberService.member_edit(uid,name,pw)
+
+        session['user_name'] = name
+
+        flash("회원정보가 수정되었습니다.")
+        return redirect(url_for('mypage'))
+    except ValueError as e:
+        flash(str(e))
+        return redirect(url_for('index'))
+
+@app.route('/member/delete', methods=['POST'])
+def member_delete():
+    if not session.get('user_id'):
+        return redirect(url_for('login'))
+
+    uid = session['user_id']
+    pw = request.form.get('password', '').strip()
+
+    try:
+        MemberService.member_delete(uid,pw)
+        session.clear()
+        flash('회원탈퇴되었습니다.')
+        return redirect(url_for('index'))
+
+    except ValueError as e:
+        flash(str(e))
+        return redirect(url_for('member_edit'))
+
+
+
 
 
 # --------------------------------------------

@@ -75,4 +75,74 @@ class MemberService:
         finally:
             conn.close()
 
+    # 마이페이지
+    @staticmethod
+    def my_page(uid:str):
+        conn = Session.get_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                SELECT * 
+                FROM members 
+                WHERE id = %s""",(uid,))
+                user_info = cursor.fetchone()
+
+                cursor.execute("""
+                SELECT count(*) AS board_count
+                FROM  boards 
+                WHERE member_id = %s""",(uid,))
+                board_count = cursor.fetchone()['board_count']
+
+                return user_info, board_count
+
+        finally:
+            conn.close()
+    @staticmethod
+    def member_edit(uid:str,name:str,pw:str):
+        conn = Session.get_connection()
+        try:
+            with conn.cursor() as cursor:
+                name = (name or "").strip()
+                pw = (pw or "").strip()
+
+                if not name:
+                    raise ValueError("이름은 필수입니다.")
+                if pw:
+                    sql = "UPDATE members SET name=%s, password=%s WHERE id=%s"
+                    cursor.execute(sql, (name, pw, uid))
+                else:
+                    sql = "UPDATE members SET name=%s WHERE id=%s"
+                    cursor.execute(sql, (name, uid))
+
+                conn.commit()
+
+        finally:
+            conn.close()
+
+    @staticmethod
+    def member_delete(uid:str,pw:str):
+        conn = Session.get_connection()
+        try:
+            with conn.cursor() as cursor:
+                pw = (pw or "").strip()
+
+                cursor.execute("SELECT password FROM members WHERE id=%s AND active=1", (uid,))
+                row = cursor.fetchone()
+
+                if not row:
+                    raise ValueError("존재하지 않거나 이미 탈퇴한 회원입니다.")
+
+                if row["password"] != pw:
+                    raise ValueError("비밀번호가 일치하지 않습니다.")
+
+                sql = "UPDATE members SET active = 0 WHERE id=%s"
+                cursor.execute(sql, (uid,))
+
+            conn.commit()
+        finally:
+            conn.close()
+
+
+
+
 
