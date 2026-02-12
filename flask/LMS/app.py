@@ -6,9 +6,12 @@
 # static, templates 폴터 필수 (프론트용 파일 모이는 곳)
 # static 정적 파일을 모아두는 곳  (HTMl, CSS, JS)
 # templates : 동적파일을 모아놓음 (CRUD화면, 인덱스, 레이아웃 등)
-from flask import Flask, render_template,request,redirect,url_for,session
+import os
+
+from flask import Flask, render_template, request, redirect, url_for, session, send_from_directory
 from LMS.common import Session
 from LMS.domain import Board, Score
+from LMS.service import PostService
 
 #                 Flask  프론트 연결      요청에 응답 ,주소전달,주소생성,상태저장
 
@@ -470,6 +473,78 @@ def score_my():
             return render_template('score_my.html', score=score)
     finally:
         conn.close()
+#----------------------------------------------------------------------------------------------------------------------
+# 파일 게시판 CRUD
+# [ ]01. 파일의 업로드와 다운로드 기능!!
+# [ ]02. 단일파일과 다중파일 업로드 처리!!
+# [ ]03. 서비스 패키지 활용
+# [v]04. /upload라는 폴더를 사용하겠다. / 용량 제한 16MB
+# [ ]05. 파일명 중복 방지용 코드 활용!
+# [ ]06. DB에서 부모객체가 삭제가되면 자식객체도 삭제되게 cascade처리 함!
+
+UPLOAD_FOLDER = 'uploads/'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER) #폴더 생성요 코드는 os.makedirs(경로)
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER #import os 상단에 추가
+#최대 업로드 용량 제한(예:16MB)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+#파일 크기 제한한다.
+# bit : 0 or 1
+# byte : 8bit -> 1byte (0~255의 256개의 값을 가지고 있다.)
+# 1KB : 1024byte
+# 1MB : 1024Kbyte
+# 1GM : 1024Mbyte
+# 1TB : 1024Gbyte
+# 1PB : 1024Tbyte
+# 1XB : 1024Pbyte
+
+@app.route('/filesboard/write', methods=['GET', 'POST'])
+def filesboard_write():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        title = request.form.get('title')
+        content = request.form.get('content')
+        # 핵심: getlist를 사용해야 리스트 형태로 가져옵니다.
+        files = request.files.getlist('files')
+
+        if PostService.save_post(session['user_id'], title, content, files):
+            return "<script>alert('게시글이 등록되었습니다.'); location.href='/filesboard';</script>"
+        else:
+            return "<script>alert('등록 실패'); history.back();</script>"
+
+    return render_template('filesboard_write.html')
+
+# 파일 게시판 목록
+@app.route('/filesboard')
+def filesboard_list():
+    posts = PostService.get_posts()
+    return render_template('filesboard_list.html', posts=posts)
+
+# 파일 게시판 상세 보기
+@app.route('/filesboard/view/<int:post_id>')
+def filesboard_view(post_id):
+    post, files = PostService.get_post_detail(post_id)
+    if not post:
+        return "<script>alert('해당 게시글이 없습니다.'); location.href='/filesboard';</script>"
+    return render_template('filesboard_view.html', post=post, files=files)
+
+# send_from_directory 사용하여 자료 다운로드 가능
+@app.route('/download/<path:filename>')
+def download_file(filename):
+    # 파일이 저장된 폴더(uploads)에서 파일을 찾아 전송합니다.
+    # 프론트 <a href="{{ url_for('download_file', filename=file.save_name) }}" ...> 이부분 처리용
+    # filename은 서버에 저장된 save_name입니다.
+    # 브라우저가 다운로드할 때 보여줄 원본 이름을 쿼리 스트링으로 받거나 DB에서 가져와야 합니다.
+    origin_name = request.args.get('origin_name')
+    return send_from_directory('uploads/', filename, as_attachment=True, download_name=origin_name)
+    # from flask import send_from_directory 필수
+
+    #   return send_from_directory('uploads/', filename)는 브라우져에서 바로 열어버림
+    #   as_attachment=True 로 하면 파일 다운로드 창을 띄움
+    #   저장할 파일명은 download_name=origin_name 로 지정
 
 #----------------------------------------------------------------------------------------------------------------------
 @app.route('/') #URL 생서용 코드 http://localhost:5000/
