@@ -12,6 +12,12 @@ Python(Flask) · MySQL · 웹개발 설계 평가시험용 프로그램입니다
 
 # 회원 프론트 구현
 
+- 로그인
+- 회원가입
+- 마이페이지
+- 회원정보 수정
+- 회원탈퇴
+  
 ## 로그인
 ![로그인](docs/login.png)
 
@@ -26,6 +32,13 @@ Python(Flask) · MySQL · 웹개발 설계 평가시험용 프로그램입니다
 
 ---
 # 관리자 페이지 프론트 구현
+
+**추가기능 구현으로는 관리자 페이지를 구현해봤습니다.**
+- 회원상태를 확인할 수 있는 대시보드
+- 회원 목록 리스트 페이지
+- 회원검색기능
+- 회원상세보기
+- 회원 비활성화 처리 기능 
 
 ## 관리자 대시보드
 ![대시보드](docs/dashboard.png)
@@ -90,3 +103,59 @@ CREATE TABLE members (
   
   ```
 
+# 프로젝트 트리
+
+```
+mbc_text/
+│
+├── app.py                  # 프로그램 실행
+├── config.py
+│
+├── common/                 # 공통 모듈
+│   ├── auth.py             # 기존 session과 비슷한 기능으로 구현
+│   ├── db.py               # DB연결
+│   └── upload.py           # 파일 첨부 기능
+│
+├── repository/             # DB 접근 계층
+│   └── member_repo.py
+│
+├── service/                # 비즈니스 로직
+│   ├── admin_service.py
+│   └── member_service.py
+│
+├── routes/                 # URL연결
+│   ├── admin_routes.py
+│   ├── member_routes.py
+│   └── main_routes.py
+│
+├── templates/              # HTML 
+│   ├── layout.html
+│   ├── main.html
+│   │
+│   ├── partials/
+│   │   ├── navbar.html
+│   │   ├── footer.html
+│   │   ├── flash.html
+│   │   └── page_header.html
+│   │
+│   ├── admin/
+│   │   ├── dashboard.html
+│   │   ├── members_list.html
+│   │   └── member_detail.html
+│   │
+│   └── member/
+│       ├── login.html
+│       ├── join.html
+│       ├── edit.html
+│       ├── find_id.html
+│       └── mypage.html
+│
+├── static/
+│   ├── css/
+│   ├── js/
+│   ├── img/                 # main 페이지 이미지 저장공간
+│   └── uploads/             # 업로드 첨부파일 저장공간(프로필 이미지)
+│
+└── docs/                   # README 이미지 전용 폴더입니다.
+    └── img/
+```
