@@ -1,6 +1,6 @@
 # MBC Academy LMS Program
 
-Python(Flask) · MySQL · 웹개발 설계 평가시험용 프로그램입니다.
+Python(Flask) · MySQL · 웹개발 설계 평가시험용 프로그램입니다. <br>
 회원(일반/관리자) 권한에 따라 기능이 분리하여 설계했습니다.
 
 ---
